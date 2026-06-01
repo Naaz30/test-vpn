@@ -1,0 +1,16 @@
+services:
+  vpn:
+    build: .
+
+    container_name: vpn
+
+    cap_add:
+      - NET_ADMIN
+
+    devices:
+      - /dev/net/tun
+
+    ports:
+      - "5555:5555/udp"
+    stdin_open: true
+    tty: true
