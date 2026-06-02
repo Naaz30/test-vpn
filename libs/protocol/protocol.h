@@ -75,4 +75,12 @@ void process_transport_data(
     int len,
     struct sockaddr_in *addr);
 
+
+void process_transport_client_data(
+    uint8_t recv_key[SESSION_KEY_LEN],
+    int tun_fd, uint8_t buffer[MAX_PACKET_SIZE])
+
+
 void process_tun_packet();
+
+void process_tun_client_packet((sockaddr *)server , uint64_t &send_nonce, uint8_t send_key, int udp_fd);

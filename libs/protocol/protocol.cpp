@@ -41,7 +41,9 @@ void process_handshake_init(
         "[+] Session established\n");
 }
 
+/* TODO : ADD process transport for client */
 
+/* TODO : Server to send handshake response back to client over UDP*/
 
 void process_transport_data(
     uint8_t *buffer,
@@ -94,7 +96,46 @@ void process_transport_data(
         pkt->data_len);
 }
 
+void process_transport_client_data(
+    uint8_t recv_key[SESSION_KEY_LEN], int tun_fd, uint8_t buffer[MAX_PACKET_SIZE])
+{
 
+    data_packet_t *pkt =
+        (data_packet_t *)buffer;
+
+    uint8_t plaintext[MAX_PAYLOAD_SIZE];
+
+    uint8_t nonce[crypto_secretbox_NONCEBYTES] = {0};
+
+    memcpy(
+        nonce,
+        &pkt->nonce,
+        sizeof(uint64_t));
+
+    if (
+        crypto_secretbox_open_easy(
+            plaintext,
+            pkt->ciphertext,
+            pkt->data_len +
+                crypto_secretbox_MACBYTES,
+            nonce,
+            recv_key) != 0)
+    {
+        printf(
+            "decrypt failed\n");
+
+        return;
+    }
+
+    write(
+        tun_fd,
+        plaintext,
+        pkt->data_len);
+}
+
+/* TODO: Fix functions */
+/*Case 1 : server sending data packets outside
+  Case 2 : client sending data packets to server */
 
 void process_tun_packet()
 {
@@ -171,9 +212,11 @@ void process_tun_packet()
         sizeof(peer->endpoint));
 }
 
-
-
-void process_tun_packet((sockaddr *)server)
+void process_tun_client_packet(
+    struct sockaddr_in *server,
+    uint64_t &send_nonce,
+    uint8_t send_key[SESSION_KEY_LEN],
+    int udp_fd)
 {
     uint8_t packet[MAX_PAYLOAD_SIZE];
 
@@ -197,13 +240,12 @@ void process_tun_packet((sockaddr *)server)
         PACKET_DATA;
 
     out.nonce =
-        0;
+        send_nonce++;
 
     out.data_len =
         len;
 
-    uint8_t nonce[
-        crypto_secretbox_NONCEBYTES] = {0};
+    uint8_t nonce[crypto_secretbox_NONCEBYTES] = {0};
 
     memcpy(
         nonce,
@@ -229,6 +271,6 @@ void process_tun_packet((sockaddr *)server)
         &out,
         packet_size,
         0,
-        (sockaddr *)&server,
-        sizeof(server));
+        (struct sockaddr *)server,
+        sizeof(*server));
 }
