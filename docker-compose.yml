@@ -1,16 +1,59 @@
 services:
-  vpn:
-    build: .
+  vpn-server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
 
-    container_name: vpn
+    container_name: vpn-server
 
     cap_add:
       - NET_ADMIN
+      - NET_RAW
 
     devices:
-      - /dev/net/tun
+      - /dev/net/tun:/dev/net/tun
+
+    privileged: true
 
     ports:
       - "5555:5555/udp"
+
     stdin_open: true
     tty: true
+
+    networks:
+      vpn-net:
+        ipv4_address: 172.20.0.2
+
+  vpn-client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+
+    container_name: vpn-client
+
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    privileged: true
+
+    depends_on:
+      - vpn-server
+
+    stdin_open: true
+    tty: true
+
+    networks:
+      vpn-net:
+        ipv4_address: 172.20.0.3
+
+networks:
+  vpn-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

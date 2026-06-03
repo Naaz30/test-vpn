@@ -40,35 +40,37 @@ void init_noise()
     printf("\n");
 }
 
-void derive_session_keys(
-    uint8_t *peer_public_key,
+void derive_client_session_keys(
+    uint8_t *server_public_key,
     uint8_t *send_key,
-    uint8_t *recv_key
-)
+    uint8_t *recv_key)
 {
-    uint8_t shared_secret[32];
+    if (
+        crypto_kx_client_session_keys(
+            recv_key,
+            send_key,
+            static_public_key,
+            static_private_key,
+            server_public_key) != 0)
+    {
+        printf("client key derivation failed\n");
+    }
+}
 
-    crypto_scalarmult(
-        shared_secret,
-        static_private_key,
-        peer_public_key
-    );
 
-    crypto_generichash(
-        send_key,
-        SESSION_KEY_LEN,
-        shared_secret,
-        32,
-        NULL,
-        0
-    );
-
-    crypto_generichash(
-        recv_key,
-        SESSION_KEY_LEN,
-        send_key,
-        SESSION_KEY_LEN,
-        NULL,
-        0
-    );
+void derive_server_session_keys(
+    uint8_t *client_public_key,
+    uint8_t *send_key,
+    uint8_t *recv_key)
+{
+    if (
+        crypto_kx_server_session_keys(
+            send_key,
+            recv_key,
+            static_public_key,
+            static_private_key,
+            client_public_key) != 0)
+    {
+        printf("server key derivation failed\n");
+    }
 }

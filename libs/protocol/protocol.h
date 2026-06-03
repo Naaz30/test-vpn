@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <netinet/ip.h>
+#include <netdb.h>
 
 #define PACKET_HANDSHAKE_INIT 1
 #define PACKET_HANDSHAKE_RESP 2
@@ -24,11 +25,10 @@
 #define MAX_PACKET_SIZE 2048
 #define MAX_PAYLOAD_SIZE 1500
 
-#define SERVER_PUBLIC_IP "127.0.0.1"
-
-bool handshake_complete;
+#define SERVER_HOSTNAME "vpn-server"
 
 
+extern bool handshake_complete;
 
 struct handshake_init_t
 {
@@ -48,7 +48,7 @@ typedef struct
 
     uint32_t server_ip;
 
-    uint8_t prefix_len
+    uint8_t prefix_len;
 
 } handshake_response_t;
 
@@ -78,9 +78,13 @@ void process_transport_data(
 
 void process_transport_client_data(
     uint8_t recv_key[SESSION_KEY_LEN],
-    int tun_fd, uint8_t buffer[MAX_PACKET_SIZE])
+    int tun_fd, uint8_t buffer[MAX_PACKET_SIZE]);
 
 
 void process_tun_packet();
 
-void process_tun_client_packet((sockaddr *)server , uint64_t &send_nonce, uint8_t send_key, int udp_fd);
+void process_tun_client_packet(
+    struct sockaddr_in *server,
+    uint64_t &send_nonce,
+    uint8_t send_key[SESSION_KEY_LEN],
+    int udp_fd);

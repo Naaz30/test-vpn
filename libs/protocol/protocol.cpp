@@ -1,6 +1,6 @@
-#pragma once
-
 #include "./protocol.h"
+
+bool handshake_complete = false;
 
 void process_handshake_init(
     uint8_t *buffer,
@@ -16,7 +16,7 @@ void process_handshake_init(
 
     uint8_t recv_key[SESSION_KEY_LEN];
 
-    derive_session_keys(
+    derive_server_session_keys(
         pkt->client_public_key,
         send_key,
         recv_key);
@@ -37,13 +37,36 @@ void process_handshake_init(
         send_key,
         recv_key);
 
+    handshake_response_t resp_pkt;
+
+    memset(
+        &resp_pkt,
+        0,
+        sizeof(resp_pkt));
+
+    resp_pkt.type = PACKET_HANDSHAKE_RESP;
+
+    memcpy(
+        resp_pkt.server_public_key,
+        static_public_key,
+        KEY_LEN);
+
+    resp_pkt.client_ip = peer->vpn_ip;
+    std::string ip = "10.0.0.1";
+    resp_pkt.server_ip = inet_addr(ip.c_str());
+    resp_pkt.prefix_len = 24;
+
+    sendto(
+        udp_fd,
+        &resp_pkt,
+        sizeof(resp_pkt),
+        0,
+        (sockaddr *)&peer->endpoint,
+        sizeof(peer->endpoint));
+
     printf(
         "[+] Session established\n");
 }
-
-/* TODO : ADD process transport for client */
-
-/* TODO : Server to send handshake response back to client over UDP*/
 
 void process_transport_data(
     uint8_t *buffer,
@@ -135,7 +158,7 @@ void process_transport_client_data(
 
 /* TODO: Fix functions */
 /*Case 1 : server sending data packets outside
-  Case 2 : client sending data packets to server */
+  Case 2 : client sending data packets to server - DONE */
 
 void process_tun_packet()
 {

@@ -8,15 +8,13 @@
 #include <string.h>
 #include <netinet/ip.h>
 
-#include "./libs/crypto/crypto.h"
-#include "./libs/device/device.h"
-#include "./libs/peer/peer.h"
-#include "./libs/protocol/protocol.h"
-
+#include "../libs/crypto/crypto.h"
+#include "../libs/device/device.h"
+#include "../libs/peer/peer.h"
+#include "../libs/protocol/protocol.h"
 
 int tun_fd;
 int udp_fd;
-
 
 int main()
 {
@@ -29,6 +27,14 @@ int main()
 
     if (tun_fd < 0)
         return -1;
+
+    system(
+        "ip addr add 10.0.0.1/24 dev tun0");
+
+    system(
+        "ip link set tun0 up");
+
+    
 
     udp_fd = socket(
         AF_INET,
@@ -74,6 +80,15 @@ int main()
     init_peers();
 
     printf("[+] VPN started\n");
+
+    system(
+    "sysctl -w net.ipv4.ip_forward=1");
+
+    system(
+    "iptables -t nat -A POSTROUTING "
+    "-s 10.0.0.0/24 "
+    "-o wlan0 "
+    "-j MASQUERADE");
 
     while (true)
     {

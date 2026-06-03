@@ -6,33 +6,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netdb.h>
 
 #include "./libs/crypto/crypto.h"
 #include "./libs/device/device.h"
 #include "./libs/peer/peer.h"
 #include "./libs/protocol/protocol.h"
 
-
 // File descriptors for tunnel and UDP socket
 int tun_fd;
 int udp_fd;
 
-
-//Session exchange Keys
+// Session exchange Keys
 uint8_t send_key[SESSION_KEY_LEN];
 uint8_t recv_key[SESSION_KEY_LEN];
 
-
-//Session NONCE values
+// Session NONCE values
 uint64_t send_nonce = 0;
 uint64_t recv_nonce = 0;
 
-
-//VPN server public key
+// VPN server public key
 uint8_t server_public_key[KEY_LEN];
-
-
-
 
 int main()
 {
@@ -72,10 +66,20 @@ int main()
     server_addr.sin_port =
         htons(5555);
 
-    inet_pton(
-        AF_INET,
-        SERVER_PUBLIC_IP,
-        &server_addr.sin_addr);
+    struct hostent *host = gethostbyname(SERVER_HOSTNAME);
+
+    if (host == NULL)
+    {
+      perror("gethostbyname");
+      return -1;
+    }
+
+    
+    memcpy(
+    &server_addr.sin_addr,
+    host->h_addr_list[0],
+    host->h_length);
+
 
     struct sockaddr_in client_addr;
 
@@ -186,7 +190,7 @@ int main()
                     resp->server_public_key,
                     KEY_LEN);
 
-                derive_session_keys(
+                derive_client_session_keys(
                     server_public_key,
                     send_key,
                     recv_key);
@@ -195,9 +199,6 @@ int main()
                     resp->client_ip,
                     resp->server_ip,
                     resp->prefix_len);
-
-                vpn_server =
-                    src_addr;
 
                 handshake_complete =
                     true;
@@ -214,7 +215,7 @@ int main()
                     continue;
 
                 process_transport_client_data(
-                   recv_key, tun_fd , buffer);
+                    recv_key, tun_fd, buffer);
             }
         }
 

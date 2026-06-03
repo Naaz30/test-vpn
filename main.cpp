@@ -126,6 +126,37 @@ void process_handshake_init(
         send_key,
         recv_key);
 
+
+
+
+    handshake_response_t resp_pkt;
+
+    memset(
+        &resp_pkt,
+        0,
+        sizeof(resp_pkt));
+
+    resp_pkt.type =    PACKET_HANDSHAKE_RESP;
+    resp_pkt.server_public_key = static_public_key;
+    resp_pkt.client_ip = peer->vpn_ip;
+    std::string ip = "10.0.0.1" ;
+    resp_pkt.server_ip = inet_addr(ip.c_str());
+    resp_pkt.prefix_len = 24;
+
+
+     sendto(
+        udp_fd,
+        &resp_pkt,
+        sizeof(resp_pkt),
+        0,
+        (sockaddr *)&peer->endpoint,
+        sizeof(peer->endpoint));
+    
+
+
+
+
+
     printf(
         "[+] Session established\n");
 }
