@@ -181,6 +181,29 @@ void process_transport_client_data(
         return;
     }
 
+    struct iphdr *ip = (struct iphdr *)plaintext;
+
+char src[INET_ADDRSTRLEN];
+char dst[INET_ADDRSTRLEN];
+
+inet_ntop(
+    AF_INET,
+    &ip->saddr,
+    src,
+    sizeof(src));
+
+inet_ntop(
+    AF_INET,
+    &ip->daddr,
+    dst,
+    sizeof(dst));
+
+printf(
+    "CLIENT DECRYPTED: %s -> %s proto=%d\n",
+    src,
+    dst,
+    ip->protocol);
+
     write(
         tun_fd,
         plaintext,
