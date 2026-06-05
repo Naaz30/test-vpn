@@ -13,8 +13,13 @@ int init_sodium();
 
 void init_noise();
 
-void derive_session_keys(
-    uint8_t *peer_public_key,
+void derive_server_session_keys(
+    uint8_t *client_public_key,
     uint8_t *send_key,
-    uint8_t *recv_key
-);
+    uint8_t *recv_key);
+
+
+void derive_client_session_keys(
+    uint8_t *server_public_key,
+    uint8_t *send_key,
+    uint8_t *recv_key);

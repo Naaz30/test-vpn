@@ -73,7 +73,7 @@ void configure_tunnel(
 
     system(
         "ip link set tun0 up");
-        
+
     FILE *fp =
         popen(
             "ip route | grep default | awk '{print $3}'",
@@ -145,6 +145,15 @@ void configure_tunnel(
         vpn_gateway_str);
 
     system(cmd);
+
+    snprintf(
+        cmd,
+        sizeof(cmd),
+        "iip link set dev tun0 mtu 1400");
+
+    system(cmd);
+
+    
 
     printf(
         "[+] Tunnel configured\n");

@@ -8,10 +8,10 @@
 #include <string.h>
 #include <netdb.h>
 
-#include "./libs/crypto/crypto.h"
-#include "./libs/device/device.h"
-#include "./libs/peer/peer.h"
-#include "./libs/protocol/protocol.h"
+#include "../libs/crypto/crypto.h"
+#include "../libs/device/device.h"
+#include "../libs/peer/peer.h"
+#include "../libs/protocol/protocol.h"
 
 // File descriptors for tunnel and UDP socket
 int tun_fd;
@@ -74,7 +74,7 @@ int main()
       return -1;
     }
 
-    
+
     memcpy(
     &server_addr.sin_addr,
     host->h_addr_list[0],

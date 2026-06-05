@@ -10,9 +10,11 @@
 #include <unistd.h>
 
 #include <stdio.h>
-#include <string.h>
+#include <string>
 #include <netinet/ip.h>
 #include <netdb.h>
+#include "../crypto/crypto.h"
+#include "../peer/peer.h"
 
 #define PACKET_HANDSHAKE_INIT 1
 #define PACKET_HANDSHAKE_RESP 2
@@ -29,6 +31,12 @@
 
 
 extern bool handshake_complete;
+
+
+
+extern int tun_fd;
+extern int udp_fd;
+
 
 struct handshake_init_t
 {
@@ -52,19 +60,25 @@ typedef struct
 
 } handshake_response_t;
 
+
+
+
+#pragma pack(push,1)
+
 struct data_packet_t
 {
     uint8_t type;
-
     uint64_t nonce;
-
     uint16_t data_len;
 
     uint8_t ciphertext[
         MAX_PAYLOAD_SIZE +
-        crypto_secretbox_MACBYTES
-    ];
+        crypto_secretbox_MACBYTES];
 };
+
+#pragma pack(pop)
+
+
 
 void process_handshake_init(
     uint8_t *buffer,

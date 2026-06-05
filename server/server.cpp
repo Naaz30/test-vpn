@@ -87,7 +87,7 @@ int main()
     system(
     "iptables -t nat -A POSTROUTING "
     "-s 10.0.0.0/24 "
-    "-o wlan0 "
+    "-o eth0 "
     "-j MASQUERADE");
 
     while (true)
@@ -159,6 +159,7 @@ int main()
                 type ==
                 PACKET_DATA)
             {
+                /*TODO : PRINT CLIENT DATA FOR DEBUGGING*/
                 process_transport_data(
                     buffer,
                     len,

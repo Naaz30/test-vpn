@@ -98,6 +98,11 @@ void process_transport_data(
         &pkt->nonce,
         sizeof(uint64_t));
 
+     printf(
+    "Received VPN packet nonce=%lu payload=%u\n",
+    pkt->nonce,
+    pkt->data_len);
+
     if (
         crypto_secretbox_open_easy(
             plaintext,
@@ -112,6 +117,32 @@ void process_transport_data(
 
         return;
     }
+
+    struct iphdr *ip =
+    (struct iphdr *)plaintext;
+
+    char src[INET_ADDRSTRLEN];
+char dst[INET_ADDRSTRLEN];
+
+inet_ntop(
+    AF_INET,
+    &ip->saddr,
+    src,
+    sizeof(src));
+
+inet_ntop(
+    AF_INET,
+    &ip->daddr,
+    dst,
+    sizeof(dst));
+
+printf(
+    "IP packet: src=%s dst=%s len=%d proto=%d\n",
+    src,
+    dst,
+    len,
+    ip->protocol);
+
 
     write(
         tun_fd,
@@ -248,9 +279,35 @@ void process_tun_client_packet(
             tun_fd,
             packet,
             sizeof(packet));
-
+    
     if (len <= 0)
         return;
+
+
+    struct iphdr *ip =
+    (struct iphdr *)packet;
+
+    char src[INET_ADDRSTRLEN];
+char dst[INET_ADDRSTRLEN];
+
+inet_ntop(
+    AF_INET,
+    &ip->saddr,
+    src,
+    sizeof(src));
+
+inet_ntop(
+    AF_INET,
+    &ip->daddr,
+    dst,
+    sizeof(dst));
+
+printf(
+    "IP packet: src=%s dst=%s len=%d proto=%d\n",
+    src,
+    dst,
+    len,
+    ip->protocol);
 
     data_packet_t out;
 
@@ -288,6 +345,11 @@ void process_tun_client_packet(
         sizeof(out.data_len) +
         len +
         crypto_secretbox_MACBYTES;
+
+    printf(
+    "Sending VPN packet nonce=%lu payload=%u\n",
+    out.nonce,
+    out.data_len);
 
     sendto(
         udp_fd,
