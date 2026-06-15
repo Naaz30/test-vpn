@@ -6,8 +6,7 @@ RUN apt-get update && apt-get install -y \
     libsodium-dev \
     iproute2 \
     iptables \
-    iputils-ping \
-    tcpdump
+    iputils-ping
 
 WORKDIR /app
 
@@ -21,7 +20,5 @@ RUN g++ \
     libs/protocol/protocol.cpp \
     -lsodium \
     -o vpn-server
-
-
 
 CMD ["/bin/bash"]
