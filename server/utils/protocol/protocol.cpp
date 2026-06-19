@@ -2,79 +2,24 @@
 
 bool handshake_complete = false;
 
-void process_handshake_init(
-    uint8_t *buffer,
-    struct sockaddr_in *client_addr)
-{
-    handshake_init_t *pkt =
-        (handshake_init_t *)buffer;
 
-    printf(
-        "[+] Handshake init received\n");
 
-    uint8_t send_key[SESSION_KEY_LEN];
+uint64_t packet_count = 0;
+std::array<bool, MAX_PACKET_BITMAP_COUNT> packet_bitmap = {false};
 
-    uint8_t recv_key[SESSION_KEY_LEN];
-
-    derive_server_session_keys(
-        pkt->client_public_key,
-        send_key,
-        recv_key);
-
-    peer_t *peer = add_peer(
-        pkt->client_public_key,
-        client_addr);
-
-    if (!peer)
-    {
-        printf("peer add failed\n");
-
-        return;
-    }
-
-    establish_session(
-        peer,
-        send_key,
-        recv_key);
-
-    handshake_response_t resp_pkt;
-
-    memset(
-        &resp_pkt,
-        0,
-        sizeof(resp_pkt));
-
-    resp_pkt.type = PACKET_HANDSHAKE_RESP;
-
-    memcpy(
-        resp_pkt.server_public_key,
-        static_public_key,
-        KEY_LEN);
-
-    resp_pkt.client_ip = peer->vpn_ip;
-    std::string ip = "10.0.0.1";
-    resp_pkt.server_ip = inet_addr(ip.c_str());
-    resp_pkt.prefix_len = 24;
-
-    sendto(
-        udp_fd,
-        &resp_pkt,
-        sizeof(resp_pkt),
-        0,
-        (sockaddr *)&peer->endpoint,
-        sizeof(peer->endpoint));
-
-    printf(
-        "[+] Session established\n");
-}
 
 void process_transport_data(
-    uint8_t *buffer,
+    ServerSession& session,
+    uint8_t* buffer,
     int len,
-    struct sockaddr_in *addr)
+    sockaddr_in* addr)
 {
-    peer_t *peer =
-        find_peer_by_ip(addr);
+    data_packet_t *pkt =
+        (data_packet_t *)buffer;
+    
+   
+    
+    peer_t *peer =    find_peer_by_index(addr, pkt->index);
 
     if (!peer)
         return;
@@ -83,11 +28,11 @@ void process_transport_data(
         peer->state !=
         PEER_ESTABLISHED)
     {
+        printf("Packet received from unknown peer!!!!!" );
         return;
     }
 
-    data_packet_t *pkt =
-        (data_packet_t *)buffer;
+    
 
     uint8_t plaintext[MAX_PAYLOAD_SIZE];
 
@@ -97,6 +42,24 @@ void process_transport_data(
         nonce,
         &pkt->nonce,
         sizeof(uint64_t));
+    
+    if(pkt->nonce%MAX_PACKET_BITMAP_COUNT == 0)
+    {
+        peer->packet_bitmap = {false};
+    }
+    
+    if(peer->packet_bitmap[(pkt->nonce)%MAX_PACKET_BITMAP_COUNT])
+    {
+        printf(
+    "Received VPN packet nonce=%lu already!!!!\n",
+    pkt->nonce);
+        return ;
+    }
+
+    peer->packet_count++;
+    peer->packet_bitmap[pkt->nonce%MAX_PACKET_BITMAP_COUNT] = true;
+    
+    
 
      printf(
     "Received VPN packet nonce=%lu payload=%u\n",
@@ -112,10 +75,23 @@ void process_transport_data(
             nonce,
             peer->session_recv_key) != 0)
     {
-        printf(
+
+        if(
+crypto_secretbox_open_easy(
+            plaintext,
+            pkt->ciphertext,
+            pkt->data_len +
+                crypto_secretbox_MACBYTES,
+            nonce,
+            peer->prev_session_recv_key) != 0
+        )
+        {
+           printf(
             "decrypt failed\n");
 
         return;
+        }
+        
     }
 
     struct iphdr *ip =
@@ -145,17 +121,20 @@ printf(
 
 
     write(
-        tun_fd,
-        plaintext,
-        pkt->data_len);
+    session.tunFd,
+    plaintext,
+    pkt->data_len);
 }
 
 void process_transport_client_data(
-    uint8_t recv_key[SESSION_KEY_LEN], int tun_fd, uint8_t buffer[MAX_PACKET_SIZE])
+    ClientSession& session,
+    const uint8_t* buffer)
 {
+    data_packet_t* pkt =
+        reinterpret_cast<data_packet_t*>(buffer);
 
-    data_packet_t *pkt =
-        (data_packet_t *)buffer;
+    if (pkt->index != session.serverIndex)
+        return;
 
     uint8_t plaintext[MAX_PAYLOAD_SIZE];
 
@@ -167,13 +146,56 @@ void process_transport_client_data(
         sizeof(uint64_t));
 
     if (
+        pkt->nonce %
+        MAX_PACKET_BITMAP_COUNT == 0)
+    {
+        session.packetBitmap.fill(false);
+    }
+
+    if (
+        session.packetBitmap[
+            pkt->nonce %
+            MAX_PACKET_BITMAP_COUNT])
+    {
+        printf(
+            "Received VPN packet nonce=%lu already\n",
+            pkt->nonce);
+
+        return;
+    }
+
+    session.packetCount++;
+
+    session.packetBitmap[
+        pkt->nonce %
+        MAX_PACKET_BITMAP_COUNT] = true;
+
+    bool decrypted = false;
+
+    if (
         crypto_secretbox_open_easy(
             plaintext,
             pkt->ciphertext,
             pkt->data_len +
                 crypto_secretbox_MACBYTES,
             nonce,
-            recv_key) != 0)
+            session.recvKey.data()) == 0)
+    {
+        decrypted = true;
+    }
+    else if (
+        crypto_secretbox_open_easy(
+            plaintext,
+            pkt->ciphertext,
+            pkt->data_len +
+                crypto_secretbox_MACBYTES,
+            nonce,
+            session.prevRecvKey.data()) == 0)
+    {
+        decrypted = true;
+    }
+
+    if (!decrypted)
     {
         printf(
             "decrypt failed\n");
@@ -182,7 +204,7 @@ void process_transport_client_data(
     }
 
     write(
-        tun_fd,
+        session.tunFd,
         plaintext,
         pkt->data_len);
 }
@@ -191,12 +213,14 @@ void process_transport_client_data(
 /*Case 1 : server sending data packets outside
   Case 2 : client sending data packets to server - DONE */
 
-void process_tun_packet()
+void process_tun_packet(
+    ServerSession& session)
 {
     uint8_t packet[MAX_PAYLOAD_SIZE];
 
-    int len = read(
-        tun_fd,
+    int len =
+    read(
+        session.tunFd,
         packet,
         sizeof(packet));
 
@@ -233,6 +257,8 @@ void process_tun_packet()
 
     out.nonce =
         peer->send_nonce++;
+    
+        out.index = peer->server_index;
 
     out.data_len = len;
 
@@ -253,77 +279,40 @@ void process_tun_packet()
     size_t packet_size =
         sizeof(out.type) +
         sizeof(out.nonce) +
+        sizeof(out.index) +
         sizeof(out.data_len) +
         len +
         crypto_secretbox_MACBYTES;
 
     sendto(
-        udp_fd,
-        &out,
-        packet_size,
-        0,
-        (sockaddr *)&peer->endpoint,
-        sizeof(peer->endpoint));
+    session.udpFd,
+    &out,
+    packet_size,
+    0,
+    (sockaddr*)&peer->endpoint,
+    sizeof(peer->endpoint));
 }
 
 void process_tun_client_packet(
-    struct sockaddr_in *server,
-    uint64_t &send_nonce,
-    uint8_t send_key[SESSION_KEY_LEN],
-    int udp_fd)
+    ClientSession& session)
 {
     uint8_t packet[MAX_PAYLOAD_SIZE];
 
     int len =
         read(
-            tun_fd,
+            session.tunFd,
             packet,
             sizeof(packet));
-    
+
     if (len <= 0)
         return;
 
+    data_packet_t out{};
 
-    struct iphdr *ip =
-    (struct iphdr *)packet;
-
-    char src[INET_ADDRSTRLEN];
-char dst[INET_ADDRSTRLEN];
-
-inet_ntop(
-    AF_INET,
-    &ip->saddr,
-    src,
-    sizeof(src));
-
-inet_ntop(
-    AF_INET,
-    &ip->daddr,
-    dst,
-    sizeof(dst));
-
-printf(
-    "IP packet: src=%s dst=%s len=%d proto=%d\n",
-    src,
-    dst,
-    len,
-    ip->protocol);
-
-    data_packet_t out;
-
-    memset(
-        &out,
-        0,
-        sizeof(out));
-
-    out.type =
-        PACKET_DATA;
-
-    out.nonce =
-        send_nonce++;
-
-    out.data_len =
-        len;
+    out.type = PACKET_DATA;
+    out.nonce = session.sendNonce++;
+    out.index = session.clientIndex;
+    out.data_len = len;
 
     uint8_t nonce[crypto_secretbox_NONCEBYTES] = {0};
 
@@ -337,25 +326,24 @@ printf(
         packet,
         len,
         nonce,
-        send_key);
+        session.sendKey.data());
 
     size_t packet_size =
         sizeof(out.type) +
         sizeof(out.nonce) +
+        sizeof(out.index) +
         sizeof(out.data_len) +
         len +
         crypto_secretbox_MACBYTES;
 
-    printf(
-    "Sending VPN packet nonce=%lu payload=%u\n",
-    out.nonce,
-    out.data_len);
-
     sendto(
-        udp_fd,
+        session.udpFd,
         &out,
         packet_size,
         0,
-        (struct sockaddr *)server,
-        sizeof(*server));
+        reinterpret_cast<sockaddr*>(
+            &session.serverAddr),
+        sizeof(session.serverAddr));
 }
+
+

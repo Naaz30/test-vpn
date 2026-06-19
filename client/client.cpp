@@ -1,85 +1,64 @@
-#include <arpa/inet.h>
-#include <netinet/ip.h>
-#include <sys/select.h>
-#include <unistd.h>
+#include "client/client.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <netdb.h>
+ClientSession session;
 
-#include "../libs/crypto/crypto.h"
-#include "../libs/device/device.h"
-#include "../libs/peer/peer.h"
-#include "../libs/protocol/protocol.h"
+void handshake_worker()
+{
+    while (session.running)
+    {
+        int send_handshake =
+            client_send_handshake(session);
+        if (send_handshake < 0)
+        {
+            perror("handshake send error");
 
-// File descriptors for tunnel and UDP socket
-int tun_fd;
-int udp_fd;
+            return;
+        }
 
-// Session exchange Keys
-uint8_t send_key[SESSION_KEY_LEN];
-uint8_t recv_key[SESSION_KEY_LEN];
-
-// Session NONCE values
-uint64_t send_nonce = 0;
-uint64_t recv_nonce = 0;
-
-// VPN server public key
-uint8_t server_public_key[KEY_LEN];
+        std::this_thread::sleep_for(
+            std::chrono::minutes(10));
+    }
+}
 
 int main()
 {
-    if (init_sodium() < 0)
+    session.tunFd =
+        create_tun_device((char *)"tun0");
+
+    if (session.tunFd < 0)
         return -1;
 
-    init_noise();
-
-    tun_fd =
-        create_tun_device(
-            (char *)"tun0");
-
-    if (tun_fd < 0)
-        return -1;
-
-    udp_fd = socket(
+    session.udpFd = socket(
         AF_INET,
         SOCK_DGRAM,
         0);
 
-    if (udp_fd < 0)
+    if (session.udpFd < 0)
     {
         perror("socket");
         return -1;
     }
 
-    struct sockaddr_in server_addr;
-
     memset(
-        &server_addr,
+        &session.serverAddr,
         0,
-        sizeof(server_addr));
+        sizeof(session.serverAddr));
 
-    server_addr.sin_family =
-        AF_INET;
-
-    server_addr.sin_port =
-        htons(5555);
+    session.serverAddr.sin_family = AF_INET;
+    session.serverAddr.sin_port = htons(5555);
 
     struct hostent *host = gethostbyname(SERVER_HOSTNAME);
 
     if (host == NULL)
     {
-      perror("gethostbyname");
-      return -1;
+        perror("gethostbyname");
+        return -1;
     }
 
-
     memcpy(
-    &server_addr.sin_addr,
-    host->h_addr_list[0],
-    host->h_length);
-
+        &session.serverAddr.sin_addr,
+        host->h_addr_list[0],
+        host->h_length);
 
     struct sockaddr_in client_addr;
 
@@ -99,7 +78,7 @@ int main()
 
     if (
         bind(
-            udp_fd,
+            session.udpFd,
             (sockaddr *)&client_addr,
             sizeof(client_addr)) < 0)
     {
@@ -108,54 +87,49 @@ int main()
         return -1;
     }
 
-    handshake_init_t init_pkt;
+    ssize_t rand_bytes =
+        getrandom(
+            &session.clientIndex,
+            sizeof(session.clientIndex),
+            0);
 
-    memset(
-        &init_pkt,
-        0,
-        sizeof(init_pkt));
+    if (rand_bytes != sizeof(session.clientIndex))
+    {
+        perror("getrandom");
+        return -1;
+    }
 
-    init_pkt.type =
-        PACKET_HANDSHAKE_INIT;
+    std::thread handshake_thread(handshake_worker);
 
-    memcpy(
-        init_pkt.client_public_key,
-        static_public_key,
-        KEY_LEN);
-
-    sendto(
-        udp_fd,
-        &init_pkt,
-        sizeof(init_pkt),
-        0,
-        (sockaddr *)&server_addr,
-        sizeof(server_addr));
-
-    printf(
-        "[+] Handshake sent\n");
-
-    while (true)
+    while (session.running)
     {
         fd_set readfds;
 
         FD_ZERO(&readfds);
 
-        FD_SET(tun_fd, &readfds);
-        FD_SET(udp_fd, &readfds);
+        FD_SET(session.tunFd, &readfds);
+        FD_SET(session.udpFd, &readfds);
 
         int maxfd =
-            tun_fd > udp_fd
-                ? tun_fd
-                : udp_fd;
+            session.tunFd > session.udpFd
+                ? session.tunFd
+                : session.udpFd;
 
-        select(
-            maxfd + 1,
-            &readfds,
-            NULL,
-            NULL,
-            NULL);
+        int ready =
+            select(
+                maxfd + 1,
+                &readfds,
+                nullptr,
+                nullptr,
+                nullptr);
 
-        if (FD_ISSET(udp_fd, &readfds))
+        if (ready < 0)
+        {
+            perror("select");
+            continue;
+        }
+
+        if (FD_ISSET(session.udpFd, &readfds))
         {
             uint8_t buffer[MAX_PACKET_SIZE];
 
@@ -166,7 +140,7 @@ int main()
 
             int len =
                 recvfrom(
-                    udp_fd,
+                    session.udpFd,
                     buffer,
                     sizeof(buffer),
                     0,
@@ -182,26 +156,56 @@ int main()
             if (type ==
                 PACKET_HANDSHAKE_RESP)
             {
-                handshake_response_t *resp =
-                    (handshake_response_t *)buffer;
 
-                memcpy(
-                    server_public_key,
+                if (len < sizeof(handshake_response_t))
+                {
+                    continue;
+                }
+
+                auto *resp =
+                    reinterpret_cast<
+                        handshake_response_t *>(buffer);
+
+                std::copy(
                     resp->server_public_key,
-                    KEY_LEN);
+                    resp->server_public_key +
+                        CryptoContext::KEY_LEN,
+                    session.serverPublicKey.begin());
 
-                derive_client_session_keys(
-                    server_public_key,
-                    send_key,
-                    recv_key);
+                std::copy(
+                    resp->server_ephemeral_public_key,
+                    resp->server_ephemeral_public_key +
+                        CryptoContext::KEY_LEN,
+                    session.serverEphemeralPublicKey.begin());
 
-                configure_tunnel(
-                    resp->client_ip,
-                    resp->server_ip,
-                    resp->prefix_len);
+                session.prevRecvKey =
+                    session.recvKey;
 
-                handshake_complete =
-                    true;
+                session.prevSendKey =
+                    session.sendKey;
+
+                auto keys =
+                    session.crypto
+                        .deriveClientSessionKeysEphemeral(
+                            session.serverPublicKey,
+                            session.serverEphemeralPublicKey,
+                            session.currentEphemeral);
+
+                session.sendKey = keys.send;
+                session.recvKey = keys.recv;
+
+                if (!session.handshakeComplete)
+                {
+                    configure_tunnel(
+                        ntohl(resp->client_ip),
+                        ntohl(resp->server_ip),
+                        resp->prefix_len);
+                }
+
+                session.handshakeComplete = true;
+
+                session.serverIndex =
+                    ntohl(resp->index);
 
                 printf(
                     "[+] Handshake complete\n");
@@ -211,23 +215,25 @@ int main()
                 type ==
                 PACKET_DATA)
             {
-                if (!handshake_complete)
+                if (!session.handshakeComplete)
                     continue;
 
                 process_transport_client_data(
-                    recv_key, tun_fd, buffer);
+                    session,
+                    buffer);
             }
         }
 
-        if (FD_ISSET(tun_fd, &readfds))
+        if (FD_ISSET(session.tunFd, &readfds))
         {
-            if (!handshake_complete)
+            if (!session.handshakeComplete)
                 continue;
 
-            process_tun_client_packet(
-                &server_addr, send_nonce, send_key, udp_fd);
+            process_tun_client_packet(session);
         }
     }
+
+    handshake_thread.join();
 
     return 0;
 }

@@ -19,6 +19,7 @@ RUN g++ -std=c++17 \
     libs/device/device.cpp \
     libs/peer/peer.cpp \
     libs/protocol/protocol.cpp \
+    libs/handshake/handshake.cpp \
     -lsodium \
     -o vpn-client
 

@@ -1,0 +1,17 @@
+1.  For each peer-server pair generate a unique identifiers for peer and server and include that in handshake . 
+    goal is to replace peer lookup based on ip with peer look up based on identifier, 
+    this will ensure vpn works even if client ip address changes.
+
+2.  Rekeying. generate new key pair after every x mins or y packets. Store old key pair to decrypt late packets. Ensures forward secrecy.
+
+3.  Add packet counters for replay protection.
+
+4.  Add timers on each peer for last handshake, last sent, last rec. Used for rekeying, identifying stale sessions, or send keepalives
+    on server last packet sent -> decides keepalives
+    on server last packet received -> decides stale session
+    on server(or client) last hanshake -> decides time for rehandshake and rekey 
+
+5. Add states on client side too
+
+
+

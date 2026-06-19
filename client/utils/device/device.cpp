@@ -149,9 +149,10 @@ void configure_tunnel(
     snprintf(
         cmd,
         sizeof(cmd),
-        "iip link set dev tun0 mtu 1400");
+        "ip link set dev tun0 mtu 1400");
 
     system(cmd);
+
 
     
 
