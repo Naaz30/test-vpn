@@ -7,6 +7,10 @@
 
 #include "./crypto/crypto.h"
 
+constexpr uint8_t MAX_PACKET_BITMAP_COUNT = 64;
+
+
+
 struct ClientSession
 {
     uint64_t packetCount{0};

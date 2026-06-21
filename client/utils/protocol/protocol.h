@@ -2,12 +2,18 @@
 
 #include <cstdint>
 #include <sodium.h>
+#include <cstring>
+#include <unistd.h>
+#include "../crypto/crypto.h"
+#include "../server_session.h"
 
 struct ClientSession;
 
 constexpr uint8_t PACKET_HANDSHAKE_INIT = 1;
 constexpr uint8_t PACKET_HANDSHAKE_RESP = 2;
 constexpr uint8_t PACKET_DATA = 3;
+
+
 
 constexpr std::size_t MAX_PACKET_SIZE = 2048;
 constexpr std::size_t MAX_PAYLOAD_SIZE = 1500;
@@ -25,9 +31,9 @@ struct handshake_init_t
 
     uint64_t epoch_ts;
 
-    uint8_t client_static_public_key[KEY_LEN];
+    uint8_t client_static_public_key[CryptoContext::KEY_LEN];
 
-    uint8_t client_ephemeral_public_key[KEY_LEN];
+    uint8_t client_ephemeral_public_key[CryptoContext::KEY_LEN];
 };
 #pragma pack(pop)
 
@@ -37,9 +43,9 @@ struct handshake_response_t
 {
     uint8_t type;
 
-    uint8_t server_static_public_key[KEY_LEN];
+    uint8_t server_static_public_key[CryptoContext::KEY_LEN];
 
-    uint8_t server_ephemeral_public_key[KEY_LEN];
+    uint8_t server_ephemeral_public_key[CryptoContext::KEY_LEN];
 
     uint32_t client_ip;
     uint32_t server_ip;

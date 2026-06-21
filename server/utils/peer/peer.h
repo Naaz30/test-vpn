@@ -7,6 +7,7 @@
 #include <array>
 
 #include "../crypto/crypto.h"
+#include <cstring>
 
 #define MAX_PEERS 32
 #define SESSION_KEY_LEN 32

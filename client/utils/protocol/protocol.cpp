@@ -1,12 +1,13 @@
 #include "./protocol.h"
 
 
+
 void process_transport_client_data(
     ClientSession& session,
     const uint8_t* buffer)
 {
-    data_packet_t* pkt =
-        reinterpret_cast<data_packet_t*>(buffer);
+    const data_packet_t* pkt =
+    reinterpret_cast<const data_packet_t*>(buffer);
 
     if (pkt->index != session.serverIndex)
         return;

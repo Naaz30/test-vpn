@@ -1,4 +1,4 @@
-#include "client/client.h"
+#include "./client.h"
 
 ClientSession session;
 
@@ -167,8 +167,8 @@ int main()
                         handshake_response_t *>(buffer);
 
                 std::copy(
-                    resp->server_public_key,
-                    resp->server_public_key +
+                    resp->server_static_public_key,
+                    resp->server_static_public_key +
                         CryptoContext::KEY_LEN,
                     session.serverPublicKey.begin());
 

@@ -12,6 +12,7 @@
 #include <thread>
 #include <array>
 #include <algorithm>
+#include <sys/random.h>
 
 #include "./utils/device/device.h"
 #include "./utils/protocol/protocol.h"

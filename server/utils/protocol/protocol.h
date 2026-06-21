@@ -3,7 +3,14 @@
 #include <cstdint>
 #include <sodium.h>
 #include "../session.h"
+#include "../crypto/crypto.h"
+#include "../peer/peer.h"
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
+
+#define MAX_PACKET_BITMAP_COUNT 64
 struct ServerSession;
 
 constexpr uint8_t PACKET_HANDSHAKE_INIT = 1;
@@ -17,6 +24,8 @@ constexpr const char* SERVER_HOSTNAME = "vpn-server";
 
 
 
+
+
 #pragma pack(push,1)
 struct handshake_init_t
 {
@@ -26,9 +35,9 @@ struct handshake_init_t
 
     uint64_t epoch_ts;
 
-    uint8_t client_static_public_key[KEY_LEN];
+    uint8_t client_static_public_key[CryptoContext::KEY_LEN];
 
-    uint8_t client_ephemeral_public_key[KEY_LEN];
+    uint8_t client_ephemeral_public_key[CryptoContext::KEY_LEN];
 };
 #pragma pack(pop)
 
@@ -38,9 +47,9 @@ struct handshake_response_t
 {
     uint8_t type;
 
-    uint8_t server_static_public_key[KEY_LEN];
+    uint8_t server_static_public_key[CryptoContext::KEY_LEN];
 
-    uint8_t server_ephemeral_public_key[KEY_LEN];
+    uint8_t server_ephemeral_public_key[CryptoContext::KEY_LEN];
 
     uint32_t client_ip;
     uint32_t server_ip;

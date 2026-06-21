@@ -60,10 +60,10 @@ void process_handshake_init(
         peer->serverEphemeral.publicKey.data(),
         CryptoContext::KEY_LEN);
 
-    resp.client_ip = peer->vpn_ip;
+    resp.client_ip = htonl(peer->vpn_ip);
 
     resp.server_ip =
-        inet_addr("10.0.0.1");
+        htonl(inet_addr("10.0.0.1"));
 
     resp.prefix_len =
         24;
@@ -79,6 +79,17 @@ void process_handshake_init(
         reinterpret_cast<sockaddr*>(
             &peer->endpoint),
         sizeof(peer->endpoint));
+
+    char ip_str[INET_ADDRSTRLEN];
+
+inet_ntop(
+    AF_INET,
+    &resp.client_ip,
+    ip_str,
+    INET_ADDRSTRLEN
+);
+
+printf("Peer Added: %s\n", ip_str);
 
     printf(
         "[+] Session established\n");

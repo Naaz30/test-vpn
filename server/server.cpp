@@ -8,13 +8,14 @@
 #include <string.h>
 #include <netinet/ip.h>
 #include <thread>
+#include <sys/random.h>
 
 #include "./utils/crypto/crypto.h"
 #include "./utils/session.h"
-#include "../libs/device/device.h"
-#include "../libs/peer/peer.h"
-#include "../libs/protocol/protocol.h"
-#include "../libs/handshake/handshake.h"
+#include "./utils/device/device.h"
+#include "./utils/peer/peer.h"
+#include "./utils/protocol/protocol.h"
+#include "./utils/handshake/handshake.h"
 
 uint32_t server_index;
 uint32_t client_index;
